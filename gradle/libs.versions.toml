@@ -1,0 +1,63 @@
+#
+# 버전 카탈로그 — 모든 의존성 버전의 단일 출처.
+# 모듈이 6개이므로 버전을 각 build.gradle.kts에 흩뿌리면 곧 어긋난다.
+#
+[versions]
+kotlin        = "2.1.21"
+springBoot    = "3.5.3"
+springDepMgmt = "1.1.7"
+coroutines    = "1.10.2"
+resilience4j  = "2.3.0"
+kotest        = "5.9.1"
+testcontainers = "1.21.3"
+mockk         = "1.14.3"
+logstash      = "8.1"
+
+[libraries]
+# --- Kotlin ---
+kotlin-reflect            = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+kotlinx-coroutines-core   = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-reactor = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-reactor", version.ref = "coroutines" }
+
+# --- Spring Boot starters (버전은 springBoot BOM 이 관리) ---
+spring-boot-starter            = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-web        = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-jdbc       = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+spring-boot-starter-data-redis = { module = "org.springframework.boot:spring-boot-starter-data-redis" }
+spring-boot-starter-actuator   = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-aop        = { module = "org.springframework.boot:spring-boot-starter-aop" }
+spring-boot-starter-websocket  = { module = "org.springframework.boot:spring-boot-starter-websocket" }
+spring-boot-starter-test       = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-testcontainers     = { module = "org.springframework.boot:spring-boot-testcontainers" }
+
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+
+# --- 인프라 ---
+postgresql = { module = "org.postgresql:postgresql" }
+flyway-core                = { module = "org.flywaydb:flyway-core" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+
+# --- 관측성 ---
+micrometer-prometheus     = { module = "io.micrometer:micrometer-registry-prometheus" }
+logstash-logback-encoder  = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash" }
+
+# --- 장애 내성 (§07) ---
+resilience4j-spring-boot3 = { module = "io.github.resilience4j:resilience4j-spring-boot3", version.ref = "resilience4j" }
+resilience4j-kotlin       = { module = "io.github.resilience4j:resilience4j-kotlin", version.ref = "resilience4j" }
+
+# --- 테스트 (§12) ---
+kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
+kotest-assertions    = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+kotest-property      = { module = "io.kotest:kotest-property", version.ref = "kotest" }
+mockk                = { module = "io.mockk:mockk", version.ref = "mockk" }
+
+testcontainers-bom           = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-postgresql    = { module = "org.testcontainers:postgresql" }
+
+[plugins]
+kotlin-jvm            = { id = "org.jetbrains.kotlin.jvm",     version.ref = "kotlin" }
+kotlin-spring         = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+spring-boot           = { id = "org.springframework.boot",     version.ref = "springBoot" }
+spring-dep-management = { id = "io.spring.dependency-management", version.ref = "springDepMgmt" }

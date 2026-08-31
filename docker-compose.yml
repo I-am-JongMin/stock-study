@@ -1,0 +1,87 @@
+#
+# 로컬 전체 스택 (Phase 0 완료 조건).
+#
+# 왜 로컬 설치 대신 Compose 인가:
+# §12 의 동시성 테스트는 mock DB 로 재현되지 않는다. 조건부 UPDATE 의 원자성,
+# UNIQUE 제약, 데드락은 실제 PostgreSQL 에서만 발생한다. 그래서 개발 초기부터
+# 실물 DB 를 쓰고, Phase 5 의 카오스 테스트에서는 이 컨테이너들을 죽여가며 검증한다.
+# 로컬에 직접 설치하면 "죽였다가 되살리는" 실험을 하기 어렵다.
+#
+name: stockstudy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockstudy-postgres
+    environment:
+      POSTGRES_DB: stockstudy
+      POSTGRES_USER: stockstudy
+      POSTGRES_PASSWORD: stockstudy
+      # 저장·로깅은 UTC (§09). 컨테이너 타임존에 따라 결과가 달라지지 않게 고정한다.
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    command:
+      # Phase 3 의 동시성 디버깅을 위한 설정.
+      - "postgres"
+      # 데드락이 발생하면 관여한 쿼리를 전부 로그로 남긴다 (§06 C1 의 락 순서 검증용).
+      - "-c"
+      - "log_lock_waits=on"
+      - "-c"
+      - "deadlock_timeout=1s"
+      # 느린 쿼리를 남긴다. 오더북 재구성이 느려지는 시점을 알아야 한다.
+      - "-c"
+      - "log_min_duration_statement=200ms"
+      - "-c"
+      - "max_connections=100"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockstudy -d stockstudy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: stockstudy-redis
+    ports:
+      - "6379:6379"
+    command:
+      - "redis-server"
+      # 시세 최신가 캐시는 유실되어도 외부에서 다시 받으면 되므로 영속화를 끈다 (§C5).
+      # 대신 분산락(§R3)이 재시작 후 초기화되는 것은 의도된 동작이다 — TTL 이 있으므로.
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "256mb"
+      # 캐시이므로 메모리가 차면 오래된 키를 버린다.
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Phase 5 (§R7) 에서 사용. 기본 실행에서는 뜨지 않는다.
+  #   docker compose --profile chaos up -d
+  # 증권사 API 앞에 프록시로 두고 지연·패킷 손실을 주입해 서킷 브레이커를 검증한다.
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.11.0
+    container_name: stockstudy-toxiproxy
+    profiles: ["chaos"]
+    ports:
+      - "8474:8474"   # 제어 API
+      - "18474:18474" # 프록시 리스너
+    healthcheck:
+      test: ["CMD", "/toxiproxy-cli", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres-data:

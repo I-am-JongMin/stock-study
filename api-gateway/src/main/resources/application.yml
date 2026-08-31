@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: stockstudy
+
+  # ADR-003 — WebFlux 대신 Spring MVC + 가상 스레드.
+  # 리액티브 연산자를 배우는 것이 목표가 아니라 락·트랜잭션을 이해하는 것이 목표이므로,
+  # 코드를 블로킹 스타일로 유지하면서 확장성만 가상 스레드로 얻는다.
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:stockstudy}
+    username: ${DB_USERNAME:stockstudy}
+    password: ${DB_PASSWORD:stockstudy}
+    hikari:
+      pool-name: stockstudy-pool
+      maximum-pool-size: 20
+      minimum-idle: 5
+      # R5 — DB 가 응답하지 않으면 빠르게 실패한다.
+      # 커넥션을 기다리며 스레드가 쌓이면 장애가 전체로 번진다.
+      connection-timeout: 3000
+      validation-timeout: 1000
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # 운영 스키마를 코드로만 바꾼다. 손으로 DDL 을 치면 환경 간 스키마가 갈라진다.
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false   # ISO-8601 로 직렬화 (§F2 asOf)
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  port: ${SERVER_PORT:8080}
+  # 배포 중 처리 중인 주문을 끊지 않는다.
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.stockstudy: DEBUG
+    org.flywaydb: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  flyway:
+    clean-disabled: false
