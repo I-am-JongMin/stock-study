@@ -85,7 +85,9 @@ docker compose exec postgres psql -U stockstudy -d stockstudy -c "
 
 **작업 순서 (제안)**
 
-1. **KIS 계좌 개설 + API 키 발급** — 앱키/시크릿을 환경변수로. `.env`는 `.gitignore`에 추가
+1. **KIS 계좌 개설 + API 키 발급** — `cp .env.example .env` 후 `KIS_APP_KEY`,
+   `KIS_APP_SECRET`, `KIS_ACCOUNT_NO`를 채운다. `.env`는 이미 `.gitignore`에 있고
+   실제로 차단되는 것을 확인했다
 2. `market-data`에 KIS REST 클라이언트 — 접근토큰 발급/캐시부터. 여기서 §R3(토큰 갱신 레이스)을
    미리 만나게 되므로, Redis 분산락을 이때 붙일지 Phase 2로 미룰지 결정
 3. 종목마스터 동기화 배치 — `INSERT ... ON CONFLICT DO UPDATE`로 멱등성 확보

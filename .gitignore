@@ -37,3 +37,11 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### 비밀 정보 ###
+# Phase 1 에서 KIS 앱키/시크릿을 여기에 넣는다. 절대 커밋되지 않아야 한다.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
