@@ -58,12 +58,12 @@ class BaselineSchemaTest @Autowired constructor(
     // ────────────────────────── 마이그레이션 ──────────────────────────
 
     @Test
-    fun `Flyway 가 V1 베이스라인을 적용한다`() {
+    fun `Flyway 가 마이그레이션을 끝까지 적용한다`() {
         val applied = jdbc.sql("SELECT version FROM flyway_schema_history WHERE success = true")
             .query(String::class.java)
             .list()
 
-        assertThat(applied).contains("1")
+        assertThat(applied).contains("1", "2")
     }
 
     @Test
@@ -134,6 +134,32 @@ class BaselineSchemaTest @Autowired constructor(
             jdbc.sql("DELETE FROM ledger WHERE account_id = :id")
                 .param("id", accountId).update()
         }.hasMessageContaining("append-only")
+    }
+
+    @Test
+    fun `INV-4 원장은 TRUNCATE 로도 지울 수 없다`() {
+        // V1 의 ledger_append_only 는 FOR EACH ROW 라서 TRUNCATE 에 발화하지 않았다.
+        // Phase 0 검증에서 원장이 통째로 지워지는 것을 실제로 확인했고, V2 에서 막았다.
+        // 이 테스트가 없으면 누군가 V2 트리거를 지워도 아무도 모른다.
+        val accountId = createAccount()
+
+        jdbc.sql(
+            """
+            INSERT INTO ledger (account_id, entry_type, amount, balance_after)
+            VALUES (:accountId, 'DEPOSIT', 1000000, 1000000)
+            """.trimIndent()
+        ).param("accountId", accountId).update()
+
+        assertThatThrownBy {
+            jdbc.sql("TRUNCATE ledger").update()
+        }.hasMessageContaining("append-only")
+
+        // 트리거가 트랜잭션을 중단시켰으므로 행은 그대로 남아 있어야 한다.
+        val remaining = jdbc.sql("SELECT count(*) FROM ledger WHERE account_id = :id")
+            .param("id", accountId)
+            .query(Long::class.java)
+            .single()
+        assertThat(remaining).isEqualTo(1L)
     }
 
     @Test

@@ -69,8 +69,11 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
 2. 애플리케이션 DB 역할에서 테이블 소유권을 분리해 DDL/TRUNCATE 권한 자체를 제거
 
 1번이 싸고 즉효지만, 소유자(superuser)는 트리거를 끄고 지울 수 있으므로 2번이
-진짜 방어선이다. **Phase 1 마이그레이션(`V2`)에 1번을 넣고, 2번은 Phase 6 운영
-준비에서 다룬다.**
+진짜 방어선이다.
+
+**조치 완료** — 1번을 `V2__ledger_truncate_guard.sql`로 넣었고, 회귀 테스트
+`INV-4 원장은 TRUNCATE 로도 지울 수 없다`를 함께 추가했다. 2번은 Phase 6 운영
+준비에서 다룬다. 같이 발견한 `execution` 쪽 공백은 §4 Q7로 올렸다.
 
 ---
 
@@ -113,6 +116,11 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
 - **Q4 인증** — 자체 JWT / OAuth. *Phase 3에서 계좌를 사용자와 묶을 때 결정*
 - **Q5 프론트엔드** — 없음(SSE 테스트 페이지) / React. *Phase 2에서 SSE를 눈으로 봐야 할 때 결정*
 - **Q6 이벤트 버스** → Redis Streams로 시작 (ADR-011). Kafka 전환은 인스턴스 2대 이상 띄울 때
+- **Q7 체결(`execution`)도 불변으로 못박을 것인가** — Phase 0 검증 중 `execution`에는
+  append-only 트리거가 *아예* 없다는 것을 발견했다. 체결은 원장만큼이나 되돌릴 수 없는
+  사실의 기록이고 INV-2 재구성의 근거 자료이므로 막는 쪽이 맞아 보이지만, 이건 버그
+  수정이 아니라 설계 결정이다. 부분체결 정정/취소를 어떻게 표현할지(새 행 vs. 수정)와
+  함께 결정해야 한다. *Phase 3에서 주문 상태 머신을 구현할 때 ADR로 결정*
 
 ---
 
