@@ -1,6 +1,6 @@
 # 다음에 할 일
 
-> 이어서 작업할 때 이 파일부터 읽는다. 마지막 갱신: Phase 0 완료 시점.
+> 이어서 작업할 때 이 파일부터 읽는다. 마지막 갱신: Phase 0 검증 완료 시점.
 
 ---
 
@@ -8,8 +8,8 @@
 
 | Phase | 상태 | 비고 |
 | --- | --- | --- |
-| 0 — 골격 | **완료 (Docker 검증만 남음)** | 아래 §2 참고 |
-| 1 — 종목 + 일봉 | 미착수 | 다음 단계 |
+| 0 — 골격 | **완료 · 검증까지 통과** | 검증 기록은 아래 §2 |
+| 1 — 종목 + 일봉 | 미착수 | **지금 할 차례.** KIS API 키 필요 |
 | 2 — 실시간 시세 | 미착수 | KIS 계좌·API 키 필요 |
 | 3 — 계좌·주문·체결 | 미착수 | 이 프로젝트의 정점 |
 | 4~7 | 미착수 | |
@@ -22,57 +22,55 @@
 - 베이스라인 스키마 `V1__baseline.sql` — 불변식 INV-1~7을 DB 제약으로 방어, 원장 append-only 트리거, 정합성 뷰
 - `docker-compose.yml` — PostgreSQL 16 + Redis 7, Phase 5용 Toxiproxy는 `chaos` 프로파일
 - `GET /health` 컨트롤러 (DB·Redis 상태에 따라 200/503)
-- Testcontainers 기반 통합 테스트 12건 작성
+- Testcontainers 기반 통합 테스트 13건 (`BaselineSchemaTest` 11 + `HealthEndpointTest` 2)
 - 문서: `spec.md`, `tech-stack.md`, `decisions.md`(ADR 16개)
 
-### 검증한 것 / 못 한 것
+### 검증한 것
 
 ```bash
 ./gradlew compileKotlin compileTestKotlin   # ✅ 통과
-./gradlew :core-domain:check                # ✅ 10건 통과 (Docker 불필요)
-./gradlew check                             # ⚠️ 미실행 — Docker 데몬이 꺼져 있었음
+./gradlew check                             # ✅ 23건 전부 통과 (통합 13 + 도메인 10)
 ```
 
 ---
 
-## 2. 다음 세션 첫 작업 — Phase 0 마무리 검증
+## 2. Phase 0 검증 기록 — 전부 통과
 
-Docker Desktop을 실행한 뒤 아래를 순서대로 확인한다. **여기서 실패하면 Phase 1로 넘어가지 않는다.**
+Docker Desktop 기동 후 5단계를 순서대로 확인했고, 모두 기대대로 동작했다.
 
-```bash
-# ① 통합 테스트 12건 — 불변식이 DB 레벨에서 실제로 막히는지
-./gradlew check
+| 단계 | 확인한 것 | 결과 |
+| --- | --- | --- |
+| ① `./gradlew check` | 불변식이 DB 레벨에서 실제로 막히는지 | ✅ 23건 통과 |
+| ② `docker compose up -d` | 로컬 스택 기동 | ✅ postgres·redis 모두 healthy |
+| ③ `GET /health` | 앱 기동 + 의존성 상태 | ✅ 200, `db`/`redis` 모두 UP |
+| ④ `\dt`, 정합성 뷰 | Flyway V1 적용 여부 | ✅ 10개 테이블 + `flyway_schema_history`, `v_account_ledger_consistency` 조회됨 |
+| ⑤ 원장 append-only | 트리거가 손으로도 막는지 | ✅ UPDATE·DELETE 모두 거부, INV-1 음수 예수금도 거부 |
 
-# ② 로컬 스택 기동
-docker compose up -d
-docker compose ps                       # postgres, redis 모두 healthy
+⑤에서 실제로 받은 에러 — 규율이 아니라 DB가 막고 있다는 증거다.
 
-# ③ 앱 기동 후 헬스체크
-./gradlew :api-gateway:bootRun          # 별도 터미널
-curl -s localhost:8080/health | jq      # status: UP, db/redis 모두 UP
-
-# ④ 스키마가 실제로 적용됐는지
-docker compose exec postgres psql -U stockstudy -d stockstudy -c '\dt'
-docker compose exec postgres psql -U stockstudy -d stockstudy \
-  -c 'SELECT * FROM v_account_ledger_consistency;'
-
-# ⑤ 원장 append-only 트리거 직접 확인 (배운 것을 손으로 만져보기)
-docker compose exec postgres psql -U stockstudy -d stockstudy -c "
-  INSERT INTO account (user_id, available_cash) VALUES (1, 1000000);
-  INSERT INTO ledger (account_id, entry_type, amount, balance_after)
-    VALUES (1, 'DEPOSIT', 1000000, 1000000);
-  UPDATE ledger SET amount = 999 WHERE account_id = 1;   -- 실패해야 정상
-"
+```
+ERROR:  원장은 append-only 입니다 (INV-4, 스펙 §05). UPDATE 연산은 허용되지 않습니다.
+ERROR:  원장은 append-only 입니다 (INV-4, 스펙 §05). DELETE 연산은 허용되지 않습니다.
+ERROR:  new row for relation "account" violates check constraint "account_available_cash_check"
 ```
 
-**예상되는 문제**
+정합성 뷰도 데이터를 넣은 상태에서 `drift = 0`을 확인했다. 검증용으로 넣은 행은
+`TRUNCATE`로 정리해 DB는 비어 있는 상태다.
 
-| 증상 | 원인 | 대응 |
-| --- | --- | --- |
-| Testcontainers가 Docker를 못 찾음 | Docker Desktop 미실행 | 실행 후 재시도 |
-| Ryuk 컨테이너 시작 실패 | Docker 소켓 권한 | `TESTCONTAINERS_RYUK_DISABLED=true`로 우회 (컨테이너 수동 정리 필요) |
-| `/health`가 503 | Redis 또는 PG 미기동 | `docker compose ps`로 확인 |
-| 포트 5432 충돌 | 로컬 PostgreSQL 실행 중 | 로컬 것을 끄거나 Compose 포트를 변경 |
+### ⚠️ 검증 중 발견한 구멍 — `TRUNCATE`는 append-only를 통과한다
+
+`ledger_append_only` 트리거는 `BEFORE UPDATE OR DELETE ... FOR EACH ROW`라서
+**`TRUNCATE`에는 걸리지 않는다.** 위 ⑤ 정리 작업에서 원장 행이 그대로 지워진 것이
+그 증거다. 운영에서 원장이 통째로 날아가는 경로가 열려 있다는 뜻이므로, 다음 중
+하나로 막아야 한다.
+
+1. `CREATE TRIGGER ledger_no_truncate BEFORE TRUNCATE ON ledger FOR EACH STATEMENT ...`
+   — 같은 함수를 재사용하면 된다 (`TG_OP`가 `TRUNCATE`로 들어온다)
+2. 애플리케이션 DB 역할에서 테이블 소유권을 분리해 DDL/TRUNCATE 권한 자체를 제거
+
+1번이 싸고 즉효지만, 소유자(superuser)는 트리거를 끄고 지울 수 있으므로 2번이
+진짜 방어선이다. **Phase 1 마이그레이션(`V2`)에 1번을 넣고, 2번은 Phase 6 운영
+준비에서 다룬다.**
 
 ---
 
