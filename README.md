@@ -27,6 +27,31 @@ curl -s localhost:8080/health | jq      # UP 확인
 ./gradlew check                # 전체 (Testcontainers → Docker 데몬 필요)
 ```
 
+### 비밀정보 보호
+
+이 저장소는 공개다. **한 번 푸시된 비밀은 되돌릴 수 없다** — 커밋을 지워도 GitHub 는
+orphan commit 을 한동안 보관하고, 공개 저장소는 봇이 수 초 안에 긁어간다.
+
+그래서 두 겹으로 막는다.
+
+| 막는 것 | 수단 |
+| --- | --- |
+| 실수로 `.env` 를 add | `.gitignore` |
+| `git add -f .env`, `application.yml` 에 키 직접 박기 | [`.githooks/pre-commit`](.githooks/pre-commit) |
+
+훅은 **스테이징된 추가 라인**만 검사한다. 환경변수 참조(`${KIS_APP_KEY}`)와 빈 값은
+통과하고, 값이 채워진 키 할당·KIS/GitHub/Slack/AWS 토큰 형식·개인키 블록을 차단한다.
+
+`.git/hooks` 는 커밋되지 않아 클론하면 사라지므로 `core.hooksPath` 를 저장소 안으로
+돌려 둔다. 그 설정은 클론마다 한 번 필요한데, 사람이 기억하게 하지 않고 빌드가
+대신 한다 — 테스트를 한 번이라도 돌리면 걸린다. 수동으로 걸려면:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+오탐이면 해당 줄 끝에 `pragma: allowlist secret` 주석을 붙인다.
+
 ---
 
 ## 문서
