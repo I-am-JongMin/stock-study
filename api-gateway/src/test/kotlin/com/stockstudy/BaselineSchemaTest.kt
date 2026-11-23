@@ -47,8 +47,8 @@ class BaselineSchemaTest @Autowired constructor(
     private fun ensureInstrument(code: String = "005930"): String {
         jdbc.sql(
             """
-            INSERT INTO instrument (code, market, name)
-            VALUES (:code, 'KOSPI', '삼성전자')
+            INSERT INTO instrument (code, market, name, name_chosung)
+            VALUES (:code, 'KOSPI', '삼성전자', 'ㅅㅅㅈㅈ')
             ON CONFLICT (code) DO NOTHING
             """.trimIndent()
         ).param("code", code).update()
@@ -63,7 +63,7 @@ class BaselineSchemaTest @Autowired constructor(
             .query(String::class.java)
             .list()
 
-        assertThat(applied).contains("1", "2")
+        assertThat(applied).contains("1", "2", "3")
     }
 
     @Test
@@ -160,6 +160,16 @@ class BaselineSchemaTest @Autowired constructor(
             .query(Long::class.java)
             .single()
         assertThat(remaining).isEqualTo(1L)
+    }
+
+    @Test
+    fun `초성 없이는 종목을 넣을 수 없다`() {
+        // NULL 을 허용하면 동기화 배치가 한 번 빠뜨린 종목이 검색에서 조용히 사라진다.
+        // 조용한 누락보다 시끄러운 INSERT 실패가 낫다 (V3).
+        assertThatThrownBy {
+            jdbc.sql("INSERT INTO instrument (code, market, name) VALUES ('999999', 'KOSPI', '테스트')")
+                .update()
+        }.isInstanceOf(DataAccessException::class.java)
     }
 
     @Test
