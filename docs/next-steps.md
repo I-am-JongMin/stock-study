@@ -1,6 +1,6 @@
 # 다음에 할 일
 
-> 이어서 작업할 때 이 파일부터 읽는다. 마지막 갱신: Phase 0 검증 완료 시점.
+> 이어서 작업할 때 이 파일부터 읽는다. 마지막 갱신: Phase 1 선행 작업(무키) 완료 시점.
 
 ---
 
@@ -8,11 +8,14 @@
 
 | Phase | 상태 | 비고 |
 | --- | --- | --- |
-| 0 — 골격 | **완료 · 검증까지 통과** | 검증 기록은 아래 §2 |
-| 1 — 종목 + 일봉 | 미착수 | **지금 할 차례.** KIS API 키 필요 |
-| 2 — 실시간 시세 | 미착수 | KIS 계좌·API 키 필요 |
+| 0 — 골격 | **완료 · 검증까지 통과** | 검증 기록은 §2 |
+| 1 — 종목 + 일봉 | **진행 중 — 키 없이 가능한 부분 완료** | **KIS 키 발급에서 막혀 있다.** §3 |
+| 2 — 실시간 시세 | 미착수 | 웹소켓 제약 실측 필요 (ADR-020) |
 | 3 — 계좌·주문·체결 | 미착수 | 이 프로젝트의 정점 |
 | 4~7 | 미착수 | |
+
+> **🚧 지금 막혀 있는 것** — KIS 앱키·앱시크릿이 없다. 발급은 본인 인증이 필요해
+> 사람이 직접 해야 한다. 절차는 §3.1 에 적어 두었다. 받으면 `.env` 에 넣고 §3.2 부터 이어간다.
 
 ### 완료한 것
 
@@ -22,15 +25,31 @@
 - 베이스라인 스키마 `V1__baseline.sql` — 불변식 INV-1~7을 DB 제약으로 방어, 원장 append-only 트리거, 정합성 뷰
 - `docker-compose.yml` — PostgreSQL 16 + Redis 7, Phase 5용 Toxiproxy는 `chaos` 프로파일
 - `GET /health` 컨트롤러 (DB·Redis 상태에 따라 200/503)
-- Testcontainers 기반 통합 테스트 13건 (`BaselineSchemaTest` 11 + `HealthEndpointTest` 2)
-- 문서: `spec.md`, `tech-stack.md`, `decisions.md`(ADR 16개)
+- Testcontainers 기반 통합 테스트 (`BaselineSchemaTest` + `HealthEndpointTest`)
+- 문서: `spec.md`, `tech-stack.md`, `decisions.md`(ADR 20개)
+
+**Phase 0 검증에서 찾은 구멍을 막은 것**
+
+- `V2__ledger_truncate_guard.sql` — 원장 `TRUNCATE` 차단 (ADR-018). 회귀 테스트 포함
+
+**Phase 1 선행 — 키 없이 가능한 것만 먼저**
+
+- `Chosung.of()` — 한글 초성 추출 순수 함수 (ADR-017). 멱등하며 검색어도 같은 함수를 지난다
+- `V3__instrument_name_chosung.sql` — `name_chosung NOT NULL` 컬럼 + 접두 검색 인덱스
+
+**운영 기반**
+
+- GitHub 공개 저장소 — <https://github.com/I-am-JongMin/stock-study>
+- `.githooks/pre-commit` — 비밀정보 커밋 차단 (ADR-019). `installGitHooks` 가 클론마다 자동 설치
+- `gh` CLI 설치 + 인증 완료 — PR·이슈 작업 가능
 
 ### 검증한 것
 
 ```bash
-./gradlew compileKotlin compileTestKotlin   # ✅ 통과
-./gradlew check                             # ✅ 23건 전부 통과 (통합 13 + 도메인 10)
+./gradlew check     # ✅ 38건 전부 통과 (통합 15 + 도메인 23)
 ```
+
+초성 테스트에는 완성형 음절 **11,172개 전수 검증**과 멱등성 속성 테스트 1,000회가 들어 있다.
 
 ---
 
@@ -84,21 +103,68 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
 - 일봉 조회 API 동작
 - 초성 검색 동작 (`ㅅㅅㅈㅈ` → 삼성전자)
 
-**작업 순서 (제안)**
+**진행 상황**
 
-1. **KIS 계좌 개설 + API 키 발급** — `cp .env.example .env` 후 `KIS_APP_KEY`,
-   `KIS_APP_SECRET`, `KIS_ACCOUNT_NO`를 채운다. `.env`는 이미 `.gitignore`에 있고
-   실제로 차단되는 것을 확인했다
-2. `market-data`에 KIS REST 클라이언트 — 접근토큰 발급/캐시부터. 여기서 §R3(토큰 갱신 레이스)을
-   미리 만나게 되므로, Redis 분산락을 이때 붙일지 Phase 2로 미룰지 결정
-3. 종목마스터 동기화 배치 — `INSERT ... ON CONFLICT DO UPDATE`로 멱등성 확보
-4. 초성 검색 — `instrument`에 `name_chosung` 컬럼을 추가하는 마이그레이션 `V2`.
-   한글 초성 추출은 `core-domain`의 순수 함수로 (유니코드 `0xAC00` 기준 산술)
-5. 일봉 수집 — **`is_adjusted` 값을 반드시 채운다.** 수정주가 여부를 모르고 저장하면
-   §01 함정 1에 그대로 걸린다
-6. 조회 API 2개 — `GET /instruments?q=`, `GET /instruments/{code}/candles`
+| # | 작업 | 상태 |
+| --- | --- | --- |
+| 1 | KIS 계좌 개설 + 앱키 발급 | **🚧 막힘 — 사람이 직접** (§3.1) |
+| 2 | KIS REST 클라이언트 (토큰 발급·캐시) | 미착수 (§3.2) |
+| 3 | 종목마스터 동기화 배치 (멱등) | 미착수 |
+| 4 | 초성 검색 | **부분 완료** — 순수 함수·컬럼·인덱스 완료, 조회 API 남음 |
+| 5 | 일봉 수집 | 미착수 |
+| 6 | 조회 API 2개 | 미착수 |
 
-**이 단계에서 배울 것** — 외부 API 연동, 배치 멱등성, 수정주가 함정
+**이 단계에서 배울 것** — 외부 API 연동, 배치 멱등성, 레이트 리밋 대응, 수정주가 함정
+
+---
+
+### 3.1 🚧 먼저 — KIS 앱키 발급 (사람이 직접)
+
+**AI 가 대신 할 수 없다.** 계좌 개설에 신분증·휴대폰 인증이, 신청 화면에 계좌 비밀번호
+인증이 필요하다. 발급되는 키는 본인 명의 금융 계좌에 실제로 주문을 넣을 수 있는 자격증명이다.
+
+1. **한국투자증권 계좌 개설** — 모바일 앱에서 비대면으로. 이미 있으면 건너뛴다
+2. **홈페이지 ID 등록 + 계좌 연결** — 신청 화면에서 계좌 인증을 하므로 묶여 있어야 한다
+3. **모의투자 신청** — `[거래] → [모의투자] → [주식/선물옵션 모의투자]`.
+   **모의투자부터 하는 것이 이 프로젝트의 결정이다** (ADR-020)
+4. **KIS Developers 에서 API 신청** — <https://apiportal.koreainvestment.com/about-howto>
+   약관 동의 → 계좌 선택 → 계좌 비밀번호로 인증 → 신청
+5. **앱키·앱시크릿 발급 확인**
+6. `cp .env.example .env` 후 `KIS_APP_KEY`, `KIS_APP_SECRET`, `KIS_ACCOUNT_NO` 를 채운다
+
+> **실전과 모의는 키가 완전히 별개다.** 앱키·앱시크릿·도메인이 전부 다르고, 섞어 쓰면 인증
+> 오류가 난다. `.env.example` 의 `KIS_BASE_URL` 기본값은 모의투자로 두었다 (ADR-020).
+
+> **키를 채팅에 붙여넣을 필요 없다.** `.env` 에 직접 넣으면 된다. `.env` 는 `.gitignore` 와
+> pre-commit 훅으로 이중 차단되며 실제로 차단되는 것을 확인했다 (ADR-019).
+
+---
+
+### 3.2 키를 받은 뒤 — KIS REST 클라이언트
+
+`market-data` 모듈에 붙인다. **접근토큰 발급과 캐시부터** 시작한다.
+
+여기서 §R3(토큰 갱신 레이스)을 바로 만난다 — 토큰은 24시간 만료인데 발급 호출 자체에 제한이
+있어서, 만료 직후 여러 요청이 동시에 갱신을 시도하면 발급 API 가 막힌다. **이때 Redis 분산락을
+붙일지 Phase 2 로 미룰지 결정해야 한다.** 단일 인스턴스에서는 JVM 락으로 충분하지만, 그
+선택을 하는 순간 인스턴스를 늘릴 수 없게 된다는 점을 ADR 로 남긴다.
+
+**레이트 리미터도 여기서 필요해진다.** 모의투자 계좌는 REST 호출 유량 제한이 더 낮고(공식 문서
+명시), 종목마스터 동기화 배치에서 `EGW00201`(초당 거래건수 초과)를 만나게 된다. 이건 버그가
+아니라 설계 과제다 — 스펙 §R 에 항목을 추가하고 다룬다 (ADR-020).
+
+### 3.3 남은 작업
+
+3. **종목마스터 동기화 배치** — `INSERT ... ON CONFLICT DO UPDATE` 로 멱등성 확보.
+   **`name_chosung` 을 반드시 `Chosung.of(name)` 으로 채운다** — 컬럼이 `NOT NULL` 이라
+   빠뜨리면 INSERT 가 실패한다. 조용히 누락되지 않게 일부러 그렇게 만들었다 (ADR-017)
+4. **초성 검색 조회 API** — 저장값과 **검색어 둘 다** `Chosung.of()` 를 지나야 한다.
+   한쪽만 정규화하면 `lg전자` 같은 입력이 조용히 안 맞는다.
+   접두 일치로 할지 부분 일치로 할지는 여기서 정한다 — 접두는 `varchar_pattern_ops` 인덱스를
+   타고(V3 에서 생성함), 부분 일치는 `pg_trgm` GIN 인덱스가 따로 필요하다
+5. **일봉 수집** — **`is_adjusted` 값을 반드시 채운다.** 수정주가 여부를 모르고 저장하면
+   §01 함정 1에 그대로 걸린다. 액면분할 종목의 과거 수익률이 조용히 망가진다
+6. **조회 API 2개** — `GET /instruments?q=`, `GET /instruments/{code}/candles`
 
 **주의** — 호가단위·거래세 값은 스펙 §01.2에 참고용으로만 적혀 있다. Phase 1에서 KRX 공식
 자료로 검증하고 설정 파일 또는 DB 테이블로 넣는다. 코드에 상수로 박지 않는다.
@@ -108,7 +174,7 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
 ## 4. 아직 열려 있는 질문
 
 결정된 것 (스펙 §14 갱신 필요)
-- **Q1 시세 소스** → KIS Open API. 계좌 개설 예정 (ADR-012)
+- **Q1 시세 소스** → KIS Open API, **모의투자 환경을 기본값으로** (ADR-012, ADR-020)
 - **Q2 체결 상대방** → 가상 유동성 공급자 (ADR-002)
 
 미결정
@@ -121,6 +187,10 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
   사실의 기록이고 INV-2 재구성의 근거 자료이므로 막는 쪽이 맞아 보이지만, 이건 버그
   수정이 아니라 설계 결정이다. 부분체결 정정/취소를 어떻게 표현할지(새 행 vs. 수정)와
   함께 결정해야 한다. *Phase 3에서 주문 상태 머신을 구현할 때 ADR로 결정*
+- **Q8 KIS 웹소켓 제약이 실제로 무엇인가** — 커뮤니티에서는 앱키당 동시 세션 1개, 세션당
+  실시간 등록 41종목으로 보고하지만 공식 문서에서 확인하지 못했다. 사실이라면 인스턴스를
+  여러 대 띄울 수 없어 ADR-011(Kafka 전환) 전제와 충돌한다. **추정을 설계 전제로 삼지 않고
+  직접 측정한다.** *Phase 2에서 실측 후 ADR-020 에 기록*
 
 ---
 
@@ -129,7 +199,7 @@ ERROR:  new row for relation "account" violates check constraint "account_availa
 | 문서 | 내용 | 언제 읽나 |
 | --- | --- | --- |
 | [`spec.md`](./spec.md) | 요구사항·불변식·동시성 6케이스·장애 7개·로드맵 | 무엇을 만들지 확인할 때 |
-| [`decisions.md`](./decisions.md) | ADR 16개 — 왜 그렇게 정했는지 | "왜 JPA를 안 썼지?" 같은 의문이 들 때 |
+| [`decisions.md`](./decisions.md) | ADR 20개 — 왜 그렇게 정했는지 | "왜 JPA를 안 썼지?" 같은 의문이 들 때 |
 | [`tech-stack.md`](./tech-stack.md) | 스택·버전·모듈별 의존성·실행 방법 | 버전을 올리거나 라이브러리를 추가할 때 |
 | `next-steps.md` | 이 파일 | 작업을 이어갈 때 **가장 먼저** |
 
