@@ -39,8 +39,8 @@ orphan commit 을 한동안 보관하고, 공개 저장소는 봇이 수 초 안
 | 실수로 `.env` 를 add | `.gitignore` |
 | `git add -f .env`, `application.yml` 에 키 직접 박기 | [`.githooks/pre-commit`](.githooks/pre-commit) |
 
-훅은 **스테이징된 추가 라인**만 검사한다. 환경변수 참조(`${KIS_APP_KEY}`)와 빈 값은
-통과하고, 값이 채워진 키 할당·KIS/GitHub/Slack/AWS 토큰 형식·개인키 블록을 차단한다.
+훅은 **스테이징된 추가 라인**만 검사한다. 환경변수 참조(`${KIWOOM_APP_KEY}`)와 빈 값은
+통과하고, 값이 채워진 키 할당·증권사/GitHub/Slack/AWS 토큰 형식·개인키 블록을 차단한다.
 
 `.git/hooks` 는 커밋되지 않아 클론하면 사라지므로 `core.hooksPath` 를 저장소 안으로
 돌려 둔다. 그 설정은 클론마다 한 번 필요한데, 사람이 기억하게 하지 않고 빌드가
@@ -60,7 +60,7 @@ git config core.hooksPath .githooks
 | --- | --- |
 | [`docs/next-steps.md`](docs/next-steps.md) | **작업을 이어갈 때 가장 먼저 읽는다** — 현재 상태와 다음 할 일 |
 | [`docs/spec.md`](docs/spec.md) | 기술 스펙 — 요구사항, 불변식, 동시성 6케이스, 장애 7개, 로드맵 |
-| [`docs/decisions.md`](docs/decisions.md) | ADR 16개 — 각 결정의 근거와 배제한 대안, 재고 시점 |
+| [`docs/decisions.md`](docs/decisions.md) | ADR 21개 — 각 결정의 근거와 배제한 대안, 재고 시점 |
 | [`docs/tech-stack.md`](docs/tech-stack.md) | 스택·버전·모듈별 의존성 |
 
 ---

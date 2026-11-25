@@ -127,7 +127,8 @@ docker compose --profile chaos up -d
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` |
 | `SERVER_PORT` | `8080` |
 
-KIS API 키는 Phase 2에서 추가한다. **저장소에 커밋하지 않고** 환경변수로 주입한다.
+키움 REST API 키(`KIWOOM_*`, ADR-021)는 Phase 1에서 추가한다. **저장소에 커밋하지 않고**
+환경변수로 주입한다 — `.env.example` 참조.
 
 ---
 

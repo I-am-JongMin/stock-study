@@ -64,7 +64,7 @@ if [ -n "$scan" ]; then
     # 값이 실제로 채워진 환경변수 할당.
     # ${...} 보간과 빈 값은 통과시킨다.
     hits=$(printf '%s\n' "$scan" | grep -nE \
-        '(KIS_APP_KEY|KIS_APP_SECRET|KIS_ACCOUNT_NO|TELEGRAM_BOT_TOKEN)[[:space:]]*=[[:space:]]*[^[:space:]$]' \
+        '((KIS|KIWOOM)_(APP_KEY|APP_SECRET|ACCOUNT_NO)|TELEGRAM_BOT_TOKEN)[[:space:]]*=[[:space:]]*[^[:space:]$]' \
         || true)
 
     # YAML/properties 에 직접 박아넣은 경우. 16 자 이상이면 placeholder 가 아니다.
@@ -87,8 +87,8 @@ $(printf '%s\n' "$hits" | sed 's/^/    /')
 
   키는 .env 에 넣고 설정에서는 환경변수로 참조하세요:
 
-      kis:
-        app-key: \${KIS_APP_KEY}
+      kiwoom:
+        app-key: \${KIWOOM_APP_KEY}
 EOF
     fi
 fi
