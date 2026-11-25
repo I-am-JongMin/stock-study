@@ -60,7 +60,8 @@ git config core.hooksPath .githooks
 | --- | --- |
 | [`docs/next-steps.md`](docs/next-steps.md) | **작업을 이어갈 때 가장 먼저 읽는다** — 현재 상태와 다음 할 일 |
 | [`docs/spec.md`](docs/spec.md) | 기술 스펙 — 요구사항, 불변식, 동시성 6케이스, 장애 7개, 로드맵 |
-| [`docs/decisions.md`](docs/decisions.md) | ADR 21개 — 각 결정의 근거와 배제한 대안, 재고 시점 |
+| [`docs/decisions.md`](docs/decisions.md) | ADR 23개 — 각 결정의 근거와 배제한 대안, 재고 시점 |
+| [`docs/harness.md`](docs/harness.md) | 하네스 — 기계가 지켜주는 것(G)과 증명하는 것(V)의 단일 장부 |
 | [`docs/tech-stack.md`](docs/tech-stack.md) | 스택·버전·모듈별 의존성 |
 
 ---
