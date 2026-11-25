@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로그 설정 — 비밀값 마스킹이 이 파일의 존재 이유다 (ADR-022).
+
+  %m 대신 %maskedMsg 를 쓴다. SecretMaskingConverter 가 appkey/token/Bearer/계좌번호
+  패턴을 지운 뒤 출력한다. 하네스 V1 테스트가 이 파일의 conversionRule 과 pattern 을
+  검증하므로, %m 으로 되돌리면 빌드가 깨진다.
+
+  시간대가 UTC 인 이유: 저장·로깅은 UTC 로 통일한다 (스펙 §09).
+
+  Phase 6 에서 JSON 구조화 로깅(logstash encoder)으로 전환할 때는 이 컨버터가 아니라
+  encoder 의 마스킹 기능으로 같은 규칙을 옮긴다 — V1 이 깨지면서 알려줄 것이다.
+-->
+<configuration>
+    <conversionRule conversionWord="maskedMsg"
+                    class="com.stockstudy.api.logging.SecretMaskingConverter"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z', UTC} %5level [%15.15thread] %-40.40logger{39} : %maskedMsg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
