@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import java.net.http.HttpClient
@@ -44,6 +45,11 @@ class KiwoomConfig {
         return RestClient.builder()
             .baseUrl(properties.baseUrl)
             .requestFactory(factory)
+            // 비-2xx 도 키움의 봉투로 번역한다. 같은 성질의 실패가 두 타입으로 갈리면
+            // 호출부의 분기가 반드시 한쪽을 빠뜨린다 (V7 이 429 로 알려줬다).
+            .defaultStatusHandler(HttpStatusCode::isError) { _, response ->
+                throw KiwoomHttpErrors.translate(response)
+            }
             .build()
     }
 

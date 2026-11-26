@@ -107,6 +107,24 @@ class KiwoomContractTest {
         thrown.kind shouldBe KiwoomErrorKind.BAD_REQUEST
     }
 
+    @Test
+    @DisplayName("유량 초과만은 429 로 온다 — 상태코드로 오는 실패도 같은 타입으로 모은다")
+    fun rateLimitArrivesAsHttp429() {
+        server.stubFor(
+            post(urlEqualTo("/oauth2/token")).willReturn(
+                aResponse()
+                    .withStatus(429)
+                    .withHeader("Content-Type", "application/json;charset=UTF-8")
+                    .withBody(fixture("rate-limited.json")),
+            ),
+        )
+
+        val thrown = shouldThrow<KiwoomApiException> { tokenApi().issue() }
+
+        thrown.returnCode shouldBe 5
+        thrown.kind shouldBe KiwoomErrorKind.RATE_LIMITED
+    }
+
     // ── 함정 2. 가격에 붙은 부호 ──────────────────────────────────────────
 
     @Test

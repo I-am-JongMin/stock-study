@@ -57,3 +57,12 @@ internal data class StockInfoRawResponse(
     @JsonProperty("lst_pric") val lowerLimitPrice: String? = null,
     @JsonProperty("trde_qty") val tradeVolume: String? = null,
 )
+
+/**
+ * 비-2xx 응답의 공통 봉투. 유량 초과(429)처럼 상태코드로 오는 실패도 본문 형식은 같다.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+internal data class ErrorRawResponse(
+    @JsonProperty("return_code") val returnCode: Int = TokenRawResponse.UNSET_RETURN_CODE,
+    @JsonProperty("return_msg") val returnMsg: String? = null,
+)

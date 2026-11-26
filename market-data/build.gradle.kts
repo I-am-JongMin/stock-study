@@ -59,3 +59,46 @@ dependencies {
     // 하네스 V4 — 녹화한 키움 응답을 오프라인에서 재생한다
     testImplementation(libs.wiremock.standalone)
 }
+
+/**
+ * 하네스 V7 — 키움 모의서버 라이브 스모크 (ADR-023, docs/harness.md).
+ *
+ * `check` 밖에 두는 이유 — 이 테스트의 실패는 우리 버그가 아니라 **계약 변경 신호**다.
+ * 외부 가용성에 빌드가 인질 잡히는 순간 사람들은 실패를 무시하기 시작하고,
+ * 그때부터 하네스는 장식이 된다.
+ *
+ * `.env` 를 읽어 환경변수로 넘긴다 — 사람이 export 를 기억하게 하지 않는다.
+ * 키가 없으면 테스트가 스스로 skip 하므로 이 태스크는 어떤 환경에서도 실패하지 않는다.
+ */
+val liveTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "키움 모의서버에 실제로 붙어 계약이 그대로인지 본다 (하네스 V7)"
+
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
+    useJUnitPlatform { includeTags("live") }
+    // 외부 상태를 보는 것이 목적이다. 캐시된 성공을 재사용하면 의미가 없다.
+    outputs.upToDateWhen { false }
+
+    val envFile = rootProject.layout.projectDirectory.file(".env").asFile
+    doFirst {
+        if (!envFile.exists()) {
+            logger.lifecycle(".env 가 없습니다 — 라이브 스모크는 건너뜁니다")
+            return@doFirst
+        }
+        envFile.readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
+            .forEach { line ->
+                val name = line.substringBefore("=").trim()
+                val value = line.substringAfter("=").trim()
+                if (value.isNotEmpty()) environment(name, value)
+            }
+    }
+}
+
+// 라이브 태그는 평소 테스트에서 제외한다. check 는 오프라인에서 항상 통과해야 한다.
+tasks.named<Test>("test") {
+    useJUnitPlatform { excludeTags("live") }
+}
