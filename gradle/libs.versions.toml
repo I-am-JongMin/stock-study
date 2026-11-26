@@ -52,6 +52,11 @@ kotest-assertions    = { module = "io.kotest:kotest-assertions-core", version.re
 kotest-property      = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 mockk                = { module = "io.mockk:mockk", version.ref = "mockk" }
 
+# Gradle 이 자동 주입하는 junit-platform-launcher 는 Boot BOM 의 junit-platform-engine 과
+# 버전이 어긋나 "OutputDirectoryProvider not available" 로 테스트 발견 자체가 실패한다.
+# 런처도 BOM 이 관리하게 명시적으로 올린다.
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
 testcontainers-bom           = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-postgresql    = { module = "org.testcontainers:postgresql" }

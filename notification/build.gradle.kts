@@ -17,7 +17,18 @@ kotlin {
 
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}")
+        mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}") {
+            // Spring Boot 3.5 BOM 은 kotlin.version 을 1.9.25 로 못박는다. 그런데
+            // io.spring.dependency-management 는 BOM 을 *모든* configuration 에 적용해서
+            // Kotlin 컴파일러 자신의 classpath(kotlinBuildToolsApiClasspath)까지 1.9.25 로
+            // 끌어내린다 — 2.1.21 로 컴파일하라고 해놓고 컴파일러는 1.9.25 를 주는 꼴이라
+            // NoClassDefFoundError 로 죽는다.
+            //
+            // api-gateway 가 멀쩡했던 이유는 spring-boot 플러그인이 이 속성을 KGP 버전으로
+            // 덮어주기 때문이다. Boot 플러그인을 적용하지 않는 라이브러리 모듈은 그 보정을
+            // 받지 못하므로 같은 일을 직접 한다. 버전 출처는 카탈로그 하나로 유지한다.
+            bomProperty("kotlin.version", libs.versions.kotlin.get())
+        }
     }
 }
 
