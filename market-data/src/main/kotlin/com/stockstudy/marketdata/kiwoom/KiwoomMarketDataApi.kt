@@ -1,6 +1,7 @@
 package com.stockstudy.marketdata.kiwoom
 
 import com.stockstudy.marketdata.instrument.Instrument
+import com.stockstudy.marketdata.instrument.InstrumentSource
 import com.stockstudy.marketdata.instrument.MarketType
 import com.stockstudy.marketdata.instrument.SecurityType
 import com.stockstudy.marketdata.kiwoom.raw.InstrumentListRawRequest
@@ -33,7 +34,7 @@ class KiwoomMarketDataApi(
     private val rest: RestClient,
     private val tokens: AccessTokens,
     private val rateLimiter: TrRateLimiter,
-) {
+) : InstrumentSource {
 
     /**
      * @return 없는 종목이면 `null`. 키움은 이 경우에도 성공으로 답하므로 여기서 구분한다.
@@ -89,7 +90,7 @@ class KiwoomMarketDataApi(
      * 응답에는 주식뿐 아니라 ETF·ETN·리츠·펀드가 섞여 있다. 걸러내지 않고 [SecurityType]
      * 으로 구분해서 전부 돌려준다 — 무엇을 쓸지는 저장·조회 쪽이 정한다 (ADR-026).
      */
-    fun instrumentList(market: MarketType): List<Instrument> {
+    override fun instrumentList(market: MarketType): List<Instrument> {
         val raw = withAuthRetry(API_ID_INSTRUMENT_LIST) { token ->
             rateLimiter.withPermit(API_ID_INSTRUMENT_LIST) { fetchInstrumentList(token, market) }
         }

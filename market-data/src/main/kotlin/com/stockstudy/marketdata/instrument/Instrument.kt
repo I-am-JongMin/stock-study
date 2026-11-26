@@ -35,8 +35,9 @@ enum class MarketType(val kiwoomMarketType: String) {
 /**
  * 상품 종류. 키움 `marketCode` 로 판정한다 (ADR-026).
  *
- * 구분이 필요한 이유는 초성 검색이다 — 유가증권시장 응답에는 주식 910 건보다 ETF 가
- * 1,192 건 더 많아서, 구분 없이 담으면 `ㅌㅇㄱ` 검색이 TIGER 시리즈로 뒤덮인다.
+ * 구분이 필요한 이유는 검색 품질이다. 유가증권시장 응답 2,496 건 중 주식은 910 건뿐이다.
+ * ETF 는 이름이 대부분 영문(KODEX·TIGER)이라 초성 검색에 덜 걸리지만, **ETN 은 369 건 중
+ * 309 건이 한글로 시작한다** — 실측하면 초성 `ㅁㄹ` 접두 검색의 83%가 비주식이다.
  */
 enum class SecurityType {
     STOCK,

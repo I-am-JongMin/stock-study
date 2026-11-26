@@ -47,8 +47,8 @@ class BaselineSchemaTest @Autowired constructor(
     private fun ensureInstrument(code: String = "005930"): String {
         jdbc.sql(
             """
-            INSERT INTO instrument (code, market, name, name_chosung)
-            VALUES (:code, 'KOSPI', '삼성전자', 'ㅅㅅㅈㅈ')
+            INSERT INTO instrument (code, market, security_type, name, name_chosung)
+            VALUES (:code, 'KOSPI', 'STOCK', '삼성전자', 'ㅅㅅㅈㅈ')
             ON CONFLICT (code) DO NOTHING
             """.trimIndent()
         ).param("code", code).update()
@@ -169,6 +169,20 @@ class BaselineSchemaTest @Autowired constructor(
         assertThatThrownBy {
             jdbc.sql("INSERT INTO instrument (code, market, name) VALUES ('999999', 'KOSPI', '테스트')")
                 .update()
+        }.isInstanceOf(DataAccessException::class.java)
+    }
+
+    @Test
+    fun `security_type 은 정해진 값만 들어간다`() {
+        // 이 목록은 우리의 어휘다. 키움이 새 분류를 내면 애플리케이션이 OTHER 로
+        // 떨어뜨리므로, 이 제약이 잡는 것은 외부 변화가 아니라 우리 코드의 오타다 (V4, ADR-026).
+        assertThatThrownBy {
+            jdbc.sql(
+                """
+                INSERT INTO instrument (code, market, security_type, name, name_chosung)
+                VALUES ('999998', 'KOSPI', '주식', '테스트', 'ㅌㅅㅌ')
+                """.trimIndent()
+            ).update()
         }.isInstanceOf(DataAccessException::class.java)
     }
 

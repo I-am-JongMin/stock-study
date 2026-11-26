@@ -74,6 +74,14 @@ kiwoom:
     interval: 1100ms
     max-wait: 30s
 
+# ── 종목마스터 동기화 안전장치 (ADR-026) ──
+# 외부 응답이 불완전할 때 멀쩡한 종목이 통째로 상장폐지되는 사고를 막는다.
+# 유가증권 2,496 / 코스닥 1,837 건이므로 100 건 미만은 명백한 이상이고,
+# 상장폐지는 하루 몇 건이라 5% 면 느슨하면서도 사고는 잡는다.
+instrument-sync:
+  min-instrument-count: 100
+  max-delist-ratio: 0.05
+
 server:
   port: ${SERVER_PORT:8080}
   # 배포 중 처리 중인 주문을 끊지 않는다.

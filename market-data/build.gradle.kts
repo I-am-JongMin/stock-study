@@ -36,6 +36,8 @@ dependencies {
 
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.boot.starter.data.redis)
+    // 종목마스터 동기화 (§F1.1) — JPA 가 아니라 JdbcClient 로 SQL 을 그대로 본다 (ADR-004)
+    implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.websocket)
     implementation(libs.spring.boot.starter.aop)
     implementation(libs.jackson.module.kotlin)
@@ -56,6 +58,7 @@ dependencies {
     // 하네스 V5 — 분산락의 상호 배제는 진짜 Redis 에서만 증명된다 (ADR-024)
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit.jupiter)
+    testImplementation(libs.testcontainers.postgresql)
     // 하네스 V4 — 녹화한 키움 응답을 오프라인에서 재생한다
     testImplementation(libs.wiremock.standalone)
 }
