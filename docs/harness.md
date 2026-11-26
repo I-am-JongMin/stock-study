@@ -29,11 +29,11 @@
 | G6 | INV-1~7 (음수 예수금, append-only, …) | 깨지면 돈이 샌다 (ADR-009) | DB CHECK·트리거·UNIQUE |
 | G7 | 원장은 `TRUNCATE` 로도 삭제 불가 | Phase 0 검증에서 발견한 구멍 (ADR-018) | `V2` 트리거 |
 | G8 | `instrument.name_chosung` 누락 불가 | 조용한 누락 방지 (ADR-017) | `NOT NULL` 제약 |
+| G9 | 키움 원시 필드·DTO 는 `kiwoom/raw` 밖으로 못 나간다 | 부호 달린 `cur_prc` 가 그대로 돌아다니면 음수 가격이 DB 에 들어간다 | `guardKiwoomRawDto` Gradle 태스크 (`check` 에 포함) + `internal` |
+| G11 | HTTP 최악 지연 < 토큰 락 TTL | 임계구역이 TTL 을 넘기면 동시 발급이 일어난다 (ADR-024) | `KiwoomProperties` init — 기동 실패 |
 
 예정 (해당 코드가 생길 때 함께 추가):
 
-- **G9 — 키움 raw DTO 격리**: 부호 달린 `cur_prc` 같은 원시 필드는 client 패키지 밖으로
-  나갈 수 없다. `Money` 변환을 거쳐야만 탈출 가능. *KiwoomClient 구현 시*
 - **G10 — 운영 DB 역할 권한 분리**: 트리거는 방지턱이지 권한 경계가 아니다 (ADR-018).
   *Phase 6*
 
@@ -44,9 +44,9 @@
 | V1 | 비밀 유출 부재 | 카나리아 비밀값을 일부러 흘려도 로그·`toString`·JSON 직렬화 어디에도 평문이 없다 | 없음 | `check` |
 | V2 | 단위·속성 | `Money` 연산, 초성(11,172자 전수), 멱등성 속성 | 없음 | `check` |
 | V3 | DB 불변식 회귀 | INV-1~7 이 실제 PostgreSQL 에서 막히는지 | Testcontainers | `check` |
-| V4 | 계약 | 키움 응답(녹화 픽스처)을 올바로 해석하는가 — 부호 함정, 8030, 레이트리밋, 타임아웃 | WireMock | `check` *(예정)* |
+| V4 | 계약 | **녹화한 진짜 응답**으로 해석을 증명한다 — HTTP 200 ≠ 성공, `return_code:0` ≠ 데이터 존재, 가격의 부호, `expires_dt` 가 KST 인 것, 읽기 타임아웃, 토큰 거부 시 1회 재시도 | WireMock | `check` |
 | V5 | 동시성 — 분산락 | 가상 스레드 100개가 동시에 락을 요구해도 임계구역 진입은 1개. 소유자가 아니면 해제 불가, TTL 초과 시 해제 실패가 **드러난다** (ADR-024) | Testcontainers | `check` |
-| V5b | 동시성 — 토큰 | 가상 스레드 50개 동시 토큰 요청 → 발급 호출 정확히 1회 (§R3) | Testcontainers + WireMock | `check` *(예정)* |
+| V5b | 동시성 — 토큰 | 가상 스레드 50개 동시 요청 → 발급 정확히 1회. 인스턴스가 달라도 공유 캐시로 1회, 선제 갱신이 경합에 져도 서비스는 멈추지 않는다 (§R3) | Testcontainers | `check` |
 | V6 | 멱등성 | 종목 동기화 2회 연속 실행 → 행 수 불변 (Phase 1 완료 조건) | Testcontainers | `check` *(예정)* |
 | V7 | 라이브 스모크 | **키움이 아직 우리가 아는 모습인가** — 토큰 발급 + 시세 1건 | 진짜 모의서버 + 키 | `liveTest` (opt-in, 키 없으면 skip) *(예정)* |
 

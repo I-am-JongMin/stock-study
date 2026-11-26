@@ -149,6 +149,73 @@ val guardRealTradingDomain by tasks.registering {
     }
 }
 
+/**
+ * 하네스 G9 — 키움의 어휘가 client 패키지 밖으로 나가면 실패한다 (ADR-021·025).
+ *
+ * 왜 필요한가 — 키움 응답의 가격 필드에는 부호가 붙는다(`cur_prc = "+171500"`). 그 부호는
+ * 가격의 일부가 아니라 전일 대비 방향 표시다. 원시 필드가 애플리케이션 안을 돌아다니면
+ * 언젠가 누군가 `toLong()` 하고, 음수 가격이 조용히 DB 에 들어간다.
+ *
+ * 그래서 변환은 raw 패키지에서 한 번만 하고, 밖으로는 변환을 마친 도메인 타입만 내보낸다.
+ * `internal` 은 Gradle 모듈 경계까지만 막아주므로 모듈 *안*의 규율은 이 태스크가 맡는다.
+ *
+ * 테스트 소스는 검사하지 않는다 — 계약 검증(V4)은 벤더의 어휘로 말하는 것이 일이다.
+ */
+val guardKiwoomRawDto by tasks.registering {
+    group = "verification"
+    description = "키움 원시 필드·DTO 가 raw 패키지 밖으로 나가지 않는지 검사한다 (하네스 G9)"
+
+    val rootDir = layout.projectDirectory.asFile
+
+    doLast {
+        val rawPackagePath = "/kiwoom/raw/"
+
+        // 키움이 쓰는 어휘. 이 문자열이 raw 밖의 운영 소스에 있으면 변환이 새고 있다는 뜻이다.
+        val vendorVocabulary = listOf(
+            "cur_prc", "pre_sig", "pred_pre", "flu_rt", "trde_qty",
+            "open_pric", "high_pric", "low_pric", "base_pric", "upl_pric", "lst_pric",
+            "stk_cd", "stk_nm", "expires_dt", "return_code", "return_msg",
+            "secretkey", "grant_type",
+        )
+
+        // G3·G4 와 달리 추적 여부를 보지 않는다. 여기서 막으려는 것은 "커밋된 상태"가 아니라
+        // 소스의 규율이므로, 아직 add 하지 않은 파일에서도 즉시 실패해야 한다.
+        val sources = rootDir.walkTopDown()
+            .onEnter { it.name != "build" && it.name != ".git" && it.name != ".gradle" }
+            .filter { it.isFile && it.extension == "kt" }
+            .map { it.relativeTo(rootDir).path }
+            .filter { it.contains("/src/main/kotlin/") }
+            .toList()
+
+        val leaks = sources.filterNot { it.contains(rawPackagePath) }
+            .flatMap { path ->
+                File(rootDir, path).readLines().mapIndexedNotNull { i, line ->
+                    vendorVocabulary.firstOrNull { line.contains("\"$it\"") }
+                        ?.let { "  $path:${i + 1}: 키움 원시 필드 '$it' — ${line.trim().take(80)}" }
+                }
+            }
+
+        // raw 패키지의 최상위 선언은 전부 internal 이어야 한다.
+        val declaration = Regex("""^(\w+\s+)*((data|enum)\s+)?(class|object|interface)\s+\w+""")
+        val exposed = sources.filter { it.contains(rawPackagePath) }
+            .flatMap { path ->
+                File(rootDir, path).readLines().mapIndexedNotNull { i, line ->
+                    if (declaration.containsMatchIn(line) && !line.startsWith("internal "))
+                        "  $path:${i + 1}: internal 이 아닙니다 — ${line.trim().take(80)}"
+                    else null
+                }
+            }
+
+        val offenders = leaks + exposed
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "키움 raw DTO 격리 위반 (하네스 G9):\n" + offenders.joinToString("\n") +
+                    "\n\n원시 필드는 kiwoom/raw 안에서만 다루고, 밖으로는 변환을 마친 타입만 내보냅니다.",
+            )
+        }
+    }
+}
+
 // 전체 모듈에 공통으로 필요한 최소한만 설정한다.
 subprojects {
     repositories {
@@ -160,6 +227,7 @@ subprojects {
         dependsOn(
             rootProject.tasks.named("guardSecrets"),
             rootProject.tasks.named("guardRealTradingDomain"),
+            rootProject.tasks.named("guardKiwoomRawDto"),
         )
     }
 

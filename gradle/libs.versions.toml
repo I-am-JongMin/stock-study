@@ -12,6 +12,7 @@ kotest        = "5.9.1"
 testcontainers = "1.21.3"
 mockk         = "1.14.3"
 logstash      = "8.1"
+wiremock      = "3.13.2"
 
 [libraries]
 # --- Kotlin ---
@@ -56,6 +57,10 @@ mockk                = { module = "io.mockk:mockk", version.ref = "mockk" }
 # 버전이 어긋나 "OutputDirectoryProvider not available" 로 테스트 발견 자체가 실패한다.
 # 런처도 BOM 이 관리하게 명시적으로 올린다.
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+# 계약 검증(V4) — 녹화한 키움 응답을 오프라인에서 재생한다.
+# standalone 은 Jetty·Jackson 을 셰이딩하고 있어 Spring 의 것과 충돌하지 않는다.
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 
 testcontainers-bom           = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }

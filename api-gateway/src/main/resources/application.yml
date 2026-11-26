@@ -47,6 +47,27 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
+# ── 키움 REST API (ADR-021) ──
+# 기본값은 모의투자다. 실전 전환은 KIWOOM_BASE_URL 교체로만 한다 (하네스 G4).
+# 키는 .env 에 두고 여기서는 환경변수로만 참조한다 (ADR-019/022).
+kiwoom:
+  base-url: ${KIWOOM_BASE_URL:https://mockapi.kiwoom.com}
+  app-key: ${KIWOOM_APP_KEY:}
+  app-secret: ${KIWOOM_APP_SECRET:}
+  account-no: ${KIWOOM_ACCOUNT_NO:}
+  # R5 — 외부가 느려도 우리 스레드가 매달려 있지 않는다.
+  # 이 둘의 합은 반드시 token.lock-ttl 보다 작아야 한다 (ADR-024). 기동 시 검증된다.
+  connect-timeout: 2s
+  read-timeout: 5s
+  token:
+    cache-key: kiwoom:token
+    lock-key: kiwoom:token:lock
+    lock-ttl: 10s
+    wait-timeout: 10s
+    retry-interval: 50ms
+    # 남은 유효시간이 10% 아래면 선제 갱신한다 — 만료 순간의 동시 요청을 만들지 않는다 (§R3)
+    refresh-margin: 0.1
+
 server:
   port: ${SERVER_PORT:8080}
   # 배포 중 처리 중인 주문을 끊지 않는다.

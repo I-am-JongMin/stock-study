@@ -1,0 +1,7 @@
+{
+  "expires_dt": "20261127210529",
+  "return_code": 0,
+  "return_msg": "정상적으로 처리되었습니다",
+  "token": "FAKE-CONTRACT-FIXTURE-TOKEN-0000000000000000000000000000000000000000000000000000000000",
+  "token_type": "Bearer"
+}

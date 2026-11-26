@@ -56,4 +56,6 @@ dependencies {
     // 하네스 V5 — 분산락의 상호 배제는 진짜 Redis 에서만 증명된다 (ADR-024)
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit.jupiter)
+    // 하네스 V4 — 녹화한 키움 응답을 오프라인에서 재생한다
+    testImplementation(libs.wiremock.standalone)
 }
