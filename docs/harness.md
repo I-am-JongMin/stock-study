@@ -45,7 +45,8 @@
 | V2 | 단위·속성 | `Money` 연산, 초성(11,172자 전수), 멱등성 속성 | 없음 | `check` |
 | V3 | DB 불변식 회귀 | INV-1~7 이 실제 PostgreSQL 에서 막히는지 | Testcontainers | `check` |
 | V4 | 계약 | 키움 응답(녹화 픽스처)을 올바로 해석하는가 — 부호 함정, 8030, 레이트리밋, 타임아웃 | WireMock | `check` *(예정)* |
-| V5 | 동시성 | 코루틴 50개 동시 토큰 요청 → 발급 호출 정확히 1회 (Redis 분산락 §R3) | Testcontainers | `check` *(예정)* |
+| V5 | 동시성 — 분산락 | 가상 스레드 100개가 동시에 락을 요구해도 임계구역 진입은 1개. 소유자가 아니면 해제 불가, TTL 초과 시 해제 실패가 **드러난다** (ADR-024) | Testcontainers | `check` |
+| V5b | 동시성 — 토큰 | 가상 스레드 50개 동시 토큰 요청 → 발급 호출 정확히 1회 (§R3) | Testcontainers + WireMock | `check` *(예정)* |
 | V6 | 멱등성 | 종목 동기화 2회 연속 실행 → 행 수 불변 (Phase 1 완료 조건) | Testcontainers | `check` *(예정)* |
 | V7 | 라이브 스모크 | **키움이 아직 우리가 아는 모습인가** — 토큰 발급 + 시세 1건 | 진짜 모의서버 + 키 | `liveTest` (opt-in, 키 없으면 skip) *(예정)* |
 
