@@ -21,6 +21,7 @@ class KiwoomProperties(
     val connectTimeout: Duration = Duration.ofSeconds(2),
     val readTimeout: Duration = Duration.ofSeconds(5),
     val token: TokenProperties = TokenProperties(),
+    val rateLimit: RateLimitProperties = RateLimitProperties(),
 ) {
     val appKey: Secret = Secret(appKey)
     val appSecret: Secret = Secret(appSecret)
@@ -40,7 +41,24 @@ class KiwoomProperties(
     /** 비밀이 하나라도 비어 있으면 키움 호출을 시도할 수 없다. 기동 시 한 번 확인한다. */
     fun credentialsConfigured(): Boolean = !appKey.blank() && !appSecret.blank()
 
-    override fun toString(): String = "KiwoomProperties(baseUrl=$baseUrl, token=$token)"
+    override fun toString(): String =
+        "KiwoomProperties(baseUrl=$baseUrl, token=$token, rateLimit=$rateLimit)"
+}
+
+/**
+ * TR 호출 간격 제한 (ADR-025).
+ *
+ * 모의투자 한도는 TR 1 개당 초당 1 회 수준이다. [interval] 의 기본값이 1 초가 아니라
+ * 1.1 초인 이유 — 경계는 서버 시계로 판정되고, 정확히 1 초로 쏘면 네트워크 지연이
+ * 조금만 흔들려도 경계 안쪽에 걸린다. 여유 10% 는 막혔을 때 치르는 비용보다 싸다.
+ */
+class RateLimitProperties(
+    val keyPrefix: String = "kiwoom:rl:",
+    val interval: Duration = Duration.ofMillis(1_100),
+    /** 이보다 오래 기다려야 하면 거부한다. 무한 대기는 스레드 적체로 먼저 죽는다. */
+    val maxWait: Duration = Duration.ofSeconds(30),
+) {
+    override fun toString(): String = "RateLimitProperties(interval=$interval, maxWait=$maxWait)"
 }
 
 /** 접근토큰 캐시·갱신 정책 (§R3). */

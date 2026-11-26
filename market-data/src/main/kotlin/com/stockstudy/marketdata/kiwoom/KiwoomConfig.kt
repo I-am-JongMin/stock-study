@@ -1,6 +1,8 @@
 package com.stockstudy.marketdata.kiwoom
 
 import com.stockstudy.marketdata.lock.RedisDistributedLock
+import com.stockstudy.marketdata.ratelimit.RedisTrRateLimiter
+import com.stockstudy.marketdata.ratelimit.TrRateLimiter
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -72,10 +74,20 @@ class KiwoomConfig {
     }
 
     @Bean
+    fun trRateLimiter(redis: StringRedisTemplate, properties: KiwoomProperties): TrRateLimiter =
+        RedisTrRateLimiter(
+            redis = redis,
+            keyPrefix = properties.rateLimit.keyPrefix,
+            interval = properties.rateLimit.interval,
+            maxWait = properties.rateLimit.maxWait,
+        )
+
+    @Bean
     fun kiwoomMarketDataApi(
         kiwoomRestClient: RestClient,
         tokenProvider: KiwoomTokenProvider,
-    ): KiwoomMarketDataApi = KiwoomMarketDataApi(kiwoomRestClient, tokenProvider)
+        rateLimiter: TrRateLimiter,
+    ): KiwoomMarketDataApi = KiwoomMarketDataApi(kiwoomRestClient, tokenProvider, rateLimiter)
 
     private companion object {
         val log = LoggerFactory.getLogger(KiwoomConfig::class.java)

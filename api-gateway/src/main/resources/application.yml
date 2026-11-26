@@ -67,6 +67,12 @@ kiwoom:
     retry-interval: 50ms
     # 남은 유효시간이 10% 아래면 선제 갱신한다 — 만료 순간의 동시 요청을 만들지 않는다 (§R3)
     refresh-margin: 0.1
+  # TR 1 개당 초당 1 회 수준의 모의투자 한도 (ADR-025).
+  # 1 초가 아니라 1.1 초인 이유는 경계 판정이 서버 시계라서다 — 여유 10%.
+  rate-limit:
+    key-prefix: "kiwoom:rl:"
+    interval: 1100ms
+    max-wait: 30s
 
 server:
   port: ${SERVER_PORT:8080}

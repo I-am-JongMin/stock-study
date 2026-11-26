@@ -10,6 +10,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.stockstudy.domain.money.Money
 import com.stockstudy.marketdata.quote.PriceChangeSign
+import com.stockstudy.marketdata.ratelimit.TrRateLimiter
 import com.stockstudy.support.secret.Secret
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -196,7 +197,9 @@ class KiwoomContractTest {
 
     private fun tokenApi() = KiwoomTokenApi(restClient(), properties, FIXED_CLOCK)
 
-    private fun marketDataApi(tokens: AccessTokens) = KiwoomMarketDataApi(restClient(), tokens)
+    // 레이트 리밋은 끈다 — 이 스위트가 증명하는 것은 응답 해석이고, 간격 제한은 V8 의 일이다.
+    private fun marketDataApi(tokens: AccessTokens) =
+        KiwoomMarketDataApi(restClient(), tokens, TrRateLimiter.Disabled)
 
     private fun restClient() = KiwoomConfig().kiwoomRestClient(properties)
 

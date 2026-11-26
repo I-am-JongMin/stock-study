@@ -6,6 +6,7 @@ import com.stockstudy.marketdata.kiwoom.raw.StockInfoRawResponse
 import com.stockstudy.marketdata.kiwoom.raw.TokenRawResponse
 import com.stockstudy.marketdata.quote.PriceChangeSign
 import com.stockstudy.marketdata.quote.StockSnapshot
+import com.stockstudy.marketdata.ratelimit.TrRateLimiter
 import com.stockstudy.support.secret.Secret
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
@@ -25,6 +26,7 @@ import org.springframework.web.client.body
 class KiwoomMarketDataApi(
     private val rest: RestClient,
     private val tokens: AccessTokens,
+    private val rateLimiter: TrRateLimiter,
 ) {
 
     /**
@@ -33,30 +35,11 @@ class KiwoomMarketDataApi(
     fun stockSnapshot(stockCode: String): StockSnapshot? {
         require(stockCode.isNotBlank()) { "종목코드가 비어 있습니다" }
 
-        // return_code 판정이 반드시 재시도 블록 *안*에 있어야 한다. 밖에 두면 인증 실패를
-        // 재시도가 영영 보지 못한다 — 하네스 V4 가 첫 실행에서 잡아낸 실수다.
+        // 두 겹의 의미가 겹치는 지점이다. 안쪽(레이트 리밋)은 "지금 쏴도 되는가",
+        // 바깥(재시도)은 "쏜 결과가 인증 실패인가". 재시도도 또 하나의 호출이므로
+        // 레이트 리밋 안쪽에 들어간다.
         val raw = withAuthRetry(API_ID_STOCK_INFO) { token ->
-            val response = rest.post()
-                .uri("/api/dostk/stkinfo")
-                .contentType(MediaType.APPLICATION_JSON)
-                // 평문 토큰이 나가는 지점 (ADR-022). grep "reveal()" 로 열거된다.
-                .header("authorization", "Bearer ${token.reveal()}")
-                .header("api-id", API_ID_STOCK_INFO)
-                .body(StockInfoRawRequest(stockCode))
-                .retrieve()
-                .body<StockInfoRawResponse>()
-                ?: throw KiwoomApiException(
-                    TokenRawResponse.UNSET_RETURN_CODE, "응답 본문이 비어 있습니다",
-                    KiwoomErrorKind.OTHER, API_ID_STOCK_INFO,
-                )
-
-            if (response.returnCode != 0) {
-                throw KiwoomApiException(
-                    response.returnCode, response.returnMsg,
-                    KiwoomErrorKind.of(response.returnCode), API_ID_STOCK_INFO,
-                )
-            }
-            response
+            rateLimiter.withPermit(API_ID_STOCK_INFO) { fetchStockInfo(token, stockCode) }
         }
 
         val code = raw.stockCode?.trim().orEmpty()
@@ -87,6 +70,36 @@ class KiwoomMarketDataApi(
             lowerLimitPrice = KiwoomNumbers.price(raw.lowerLimitPrice),
             tradeVolume = KiwoomNumbers.quantity(raw.tradeVolume),
         )
+    }
+
+    /**
+     * HTTP 왕복과 응답 봉투 판정.
+     *
+     * `return_code` 판정이 반드시 이 안에 있어야 한다. 바깥에 두면 인증 실패를 재시도가
+     * 영영 보지 못한다 — 하네스 V4 가 첫 실행에서 잡아낸 실수다.
+     */
+    private fun fetchStockInfo(token: Secret, stockCode: String): StockInfoRawResponse {
+        val response = rest.post()
+            .uri("/api/dostk/stkinfo")
+            .contentType(MediaType.APPLICATION_JSON)
+            // 평문 토큰이 나가는 지점 (ADR-022). grep "reveal()" 로 열거된다.
+            .header("authorization", "Bearer ${token.reveal()}")
+            .header("api-id", API_ID_STOCK_INFO)
+            .body(StockInfoRawRequest(stockCode))
+            .retrieve()
+            .body<StockInfoRawResponse>()
+            ?: throw KiwoomApiException(
+                TokenRawResponse.UNSET_RETURN_CODE, "응답 본문이 비어 있습니다",
+                KiwoomErrorKind.OTHER, API_ID_STOCK_INFO,
+            )
+
+        if (response.returnCode != 0) {
+            throw KiwoomApiException(
+                response.returnCode, response.returnMsg,
+                KiwoomErrorKind.of(response.returnCode), API_ID_STOCK_INFO,
+            )
+        }
+        return response
     }
 
     /**
