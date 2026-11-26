@@ -22,3 +22,8 @@ internal class TokenRawRequest(
 internal data class StockInfoRawRequest(
     @JsonProperty("stk_cd") val stockCode: String,
 )
+
+/** ka10099 종목정보 리스트. `mrkt_tp` 는 거래소 구분이다 (0 유가증권 / 10 코스닥). */
+internal data class InstrumentListRawRequest(
+    @JsonProperty("mrkt_tp") val marketType: String,
+)

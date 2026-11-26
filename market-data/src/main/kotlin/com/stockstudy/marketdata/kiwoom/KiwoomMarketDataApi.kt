@@ -1,5 +1,11 @@
 package com.stockstudy.marketdata.kiwoom
 
+import com.stockstudy.marketdata.instrument.Instrument
+import com.stockstudy.marketdata.instrument.MarketType
+import com.stockstudy.marketdata.instrument.SecurityType
+import com.stockstudy.marketdata.kiwoom.raw.InstrumentListRawRequest
+import com.stockstudy.marketdata.kiwoom.raw.InstrumentListRawResponse
+import com.stockstudy.marketdata.kiwoom.raw.KiwoomDates
 import com.stockstudy.marketdata.kiwoom.raw.KiwoomNumbers
 import com.stockstudy.marketdata.kiwoom.raw.StockInfoRawRequest
 import com.stockstudy.marketdata.kiwoom.raw.StockInfoRawResponse
@@ -73,6 +79,70 @@ class KiwoomMarketDataApi(
     }
 
     /**
+     * ka10099 — 한 거래소의 **종목 전체**를 한 번에 받는다 (§F1.1).
+     *
+     * **이 TR 하나가 §3.3 의 설계를 바꿨다.** ka10001 로 종목별 조회를 하면 2,800 회 ×
+     * 초당 1 회 = 최소 50 분이고, 50 분짜리 배치는 반드시 중간에 죽는다. ka10099 는
+     * 유가증권 2,496 건을 **호출 한 번**에 주고 `cont-yn` 도 `N` 이라 페이징조차 없다.
+     * 한도가 설계를 바꾼다는 ADR-025 의 결론이 이렇게 적용된다.
+     *
+     * 응답에는 주식뿐 아니라 ETF·ETN·리츠·펀드가 섞여 있다. 걸러내지 않고 [SecurityType]
+     * 으로 구분해서 전부 돌려준다 — 무엇을 쓸지는 저장·조회 쪽이 정한다 (ADR-026).
+     */
+    fun instrumentList(market: MarketType): List<Instrument> {
+        val raw = withAuthRetry(API_ID_INSTRUMENT_LIST) { token ->
+            rateLimiter.withPermit(API_ID_INSTRUMENT_LIST) { fetchInstrumentList(token, market) }
+        }
+
+        val rows = raw.list.orEmpty()
+        val instruments = rows.mapNotNull { row ->
+            val code = row.code?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val securityType = SecurityType.of(row.marketCode)
+            if (securityType == SecurityType.OTHER) {
+                // 조용히 버리지 않는다. 키움이 새 분류를 추가했다는 신호이고,
+                // 그 사실을 아무도 모르는 것이 틀린 분류보다 나쁘다.
+                log.warn(
+                    "ka10099 — 알 수 없는 marketCode 입니다: code={} marketCode={} marketName={}",
+                    code, row.marketCode, row.marketName,
+                )
+            }
+            Instrument(
+                code = code,
+                market = market,
+                securityType = securityType,
+                name = row.name?.trim().orEmpty(),
+                listedAt = KiwoomDates.date(row.registeredDay),
+            )
+        }
+
+        log.info("ka10099 — {} 종목 {}건 수신 (원문 {}건)", market, instruments.size, rows.size)
+        return instruments
+    }
+
+    private fun fetchInstrumentList(token: Secret, market: MarketType): InstrumentListRawResponse {
+        val response = rest.post()
+            .uri("/api/dostk/stkinfo")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("authorization", "Bearer ${token.reveal()}")
+            .header("api-id", API_ID_INSTRUMENT_LIST)
+            .body(InstrumentListRawRequest(market.kiwoomMarketType))
+            .retrieve()
+            .body<InstrumentListRawResponse>()
+            ?: throw KiwoomApiException(
+                TokenRawResponse.UNSET_RETURN_CODE, "응답 본문이 비어 있습니다",
+                KiwoomErrorKind.OTHER, API_ID_INSTRUMENT_LIST,
+            )
+
+        if (response.returnCode != 0) {
+            throw KiwoomApiException(
+                response.returnCode, response.returnMsg,
+                KiwoomErrorKind.of(response.returnCode), API_ID_INSTRUMENT_LIST,
+            )
+        }
+        return response
+    }
+
+    /**
      * HTTP 왕복과 응답 봉투 판정.
      *
      * `return_code` 판정이 반드시 이 안에 있어야 한다. 바깥에 두면 인증 실패를 재시도가
@@ -122,6 +192,7 @@ class KiwoomMarketDataApi(
 
     private companion object {
         const val API_ID_STOCK_INFO = "ka10001"
+        const val API_ID_INSTRUMENT_LIST = "ka10099"
         val log = LoggerFactory.getLogger(KiwoomMarketDataApi::class.java)
     }
 }

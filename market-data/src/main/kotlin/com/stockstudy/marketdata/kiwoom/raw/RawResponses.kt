@@ -66,3 +66,36 @@ internal data class ErrorRawResponse(
     @JsonProperty("return_code") val returnCode: Int = TokenRawResponse.UNSET_RETURN_CODE,
     @JsonProperty("return_msg") val returnMsg: String? = null,
 )
+
+/**
+ * ka10099 종목정보 리스트.
+ *
+ * **같은 서버인데 필드 표기법이 다르다** — ka10001 은 snake_case(`cur_prc`)인데 여기는
+ * camelCase(`marketCode`)다. 봉투 필드(`return_code`)만 snake_case 로 공통이다.
+ * 한 벤더 안에서도 규칙이 갈린다는 뜻이고, 그래서 필드명을 추측하지 않고 실제 응답을
+ * 녹화해서 맞춘다.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+internal data class InstrumentListRawResponse(
+    @JsonProperty("return_code") val returnCode: Int = TokenRawResponse.UNSET_RETURN_CODE,
+    @JsonProperty("return_msg") val returnMsg: String? = null,
+    @JsonProperty("list") val list: List<InstrumentRaw>? = null,
+)
+
+/**
+ * 종목 한 건의 원문. 15 개 필드 중 지금 쓰는 것만 선언한다.
+ *
+ * 쓰지 않는 것: `listCount`(상장주식수), `lastPrice`(기준가), `auditInfo`(감리구분),
+ * `state`(증거금·신용), `upName`/`upSizeName`(업종·규모), `orderWarning`(투자경고),
+ * `nxtEnable`(넥스트레이드 거래가능), `companyClassName`. 필요해지면 여기서 끌어올린다.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+internal data class InstrumentRaw(
+    @JsonProperty("code") val code: String? = null,
+    @JsonProperty("name") val name: String? = null,
+    /** 거래소가 아니라 **상품 종류**다 — 0 거래소, 8 ETF, 60 ETN, 6 리츠 … */
+    @JsonProperty("marketCode") val marketCode: String? = null,
+    @JsonProperty("marketName") val marketName: String? = null,
+    /** 상장일 `yyyyMMdd`. 빈 문자열인 종목이 있다. */
+    @JsonProperty("regDay") val registeredDay: String? = null,
+)

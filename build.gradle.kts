@@ -175,7 +175,11 @@ val guardKiwoomRawDto by tasks.registering {
             "cur_prc", "pre_sig", "pred_pre", "flu_rt", "trde_qty",
             "open_pric", "high_pric", "low_pric", "base_pric", "upl_pric", "lst_pric",
             "stk_cd", "stk_nm", "expires_dt", "return_code", "return_msg",
-            "secretkey", "grant_type",
+            "secretkey", "grant_type", "mrkt_tp",
+            // ka10099 는 같은 서버인데 camelCase 다. 표기법이 섞여 있다는 것 자체가
+            // 어휘를 한곳에 가둬야 하는 이유다.
+            "marketCode", "marketName", "regDay", "listCount", "lastPrice",
+            "auditInfo", "orderWarning", "nxtEnable", "upSizeName", "companyClassName",
         )
 
         // G3·G4 와 달리 추적 여부를 보지 않는다. 여기서 막으려는 것은 "커밋된 상태"가 아니라

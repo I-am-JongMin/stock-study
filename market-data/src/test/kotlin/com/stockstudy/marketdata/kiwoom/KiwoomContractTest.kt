@@ -9,10 +9,14 @@ import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.stockstudy.domain.money.Money
+import com.stockstudy.marketdata.instrument.MarketType
+import com.stockstudy.marketdata.instrument.SecurityType
 import com.stockstudy.marketdata.quote.PriceChangeSign
 import com.stockstudy.marketdata.ratelimit.TrRateLimiter
 import com.stockstudy.support.secret.Secret
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterAll
@@ -25,6 +29,7 @@ import java.math.BigDecimal
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
@@ -160,6 +165,81 @@ class KiwoomContractTest {
         stubJson("/api/dostk/stkinfo", fixture("ka10001-unknown.json"))
 
         marketDataApi(FakeTokens("token-1")).stockSnapshot("999999") shouldBe null
+    }
+
+    // ── ka10099 종목 리스트 ───────────────────────────────────────────────
+
+    @Test
+    @DisplayName("유가증권 응답 한 건에 주식·ETF·ETN·리츠·펀드가 섞여 온다")
+    fun instrumentListMixesSecurityTypes() {
+        stubJson("/api/dostk/stkinfo", fixture("ka10099-kospi.json"))
+
+        val instruments = marketDataApi(FakeTokens("token-1")).instrumentList(MarketType.KOSPI)
+
+        instruments.map { it.securityType }.toSet() shouldBe setOf(
+            SecurityType.STOCK, SecurityType.ETF, SecurityType.ETN,
+            SecurityType.REIT, SecurityType.FUND,
+        )
+        val samsung = instruments.first { it.code == "005930" }
+        samsung.name shouldBe "삼성전자"
+        samsung.securityType shouldBe SecurityType.STOCK
+        // 원문 regDay = "19750611"
+        samsung.listedAt shouldBe LocalDate.of(1975, 6, 11)
+
+        // marketCode 8 은 거래소가 아니라 ETF 라는 뜻이다
+        instruments.first { it.code == "0000D0" }.securityType shouldBe SecurityType.ETF
+    }
+
+    @Test
+    @DisplayName("거래소 구분은 응답이 아니라 요청에서 정한다 — marketCode 는 상품 종류다")
+    fun marketComesFromTheRequestNotTheResponse() {
+        stubJson("/api/dostk/stkinfo", fixture("ka10099-kospi.json"))
+
+        val instruments = marketDataApi(FakeTokens("token-1")).instrumentList(MarketType.KOSPI)
+
+        // 응답의 marketCode 는 0·2·4·6·8·60·70·90 으로 흩어져 있지만 전부 유가증권시장이다.
+        instruments.map { it.market }.toSet() shouldBe setOf(MarketType.KOSPI)
+        server.verify(
+            postRequestedFor(urlEqualTo("/api/dostk/stkinfo"))
+                .withHeader("api-id", equalTo("ka10099"))
+                .withRequestBody(matchingJsonPath("$.mrkt_tp", equalTo("0"))),
+        )
+    }
+
+    @Test
+    @DisplayName("코스닥은 mrkt_tp 10 으로 묻고, 외국기업(900번대)도 그대로 들어온다")
+    fun kosdaqList() {
+        stubJson("/api/dostk/stkinfo", fixture("ka10099-kosdaq.json"))
+
+        val instruments = marketDataApi(FakeTokens("token-1")).instrumentList(MarketType.KOSDAQ)
+
+        instruments.map { it.market }.toSet() shouldBe setOf(MarketType.KOSDAQ)
+        instruments.map { it.securityType }.toSet() shouldBe setOf(SecurityType.STOCK)
+        instruments.map { it.code } shouldContain "900110"
+        server.verify(
+            postRequestedFor(urlEqualTo("/api/dostk/stkinfo"))
+                .withRequestBody(matchingJsonPath("$.mrkt_tp", equalTo("10"))),
+        )
+    }
+
+    @Test
+    @DisplayName("모르는 marketCode 는 버리지 않고 OTHER 로 담는다 — 조용한 누락이 더 나쁘다")
+    fun unknownMarketCodeBecomesOther() {
+        stubJson(
+            "/api/dostk/stkinfo",
+            """
+            {"return_code":0,"return_msg":"ok","list":[
+              {"code":"999999","name":"새로운무언가","marketCode":"77","marketName":"신종","regDay":""}
+            ]}
+            """.trimIndent(),
+        )
+
+        val instruments = marketDataApi(FakeTokens("token-1")).instrumentList(MarketType.KOSPI)
+
+        instruments shouldHaveSize 1
+        instruments.single().securityType shouldBe SecurityType.OTHER
+        // regDay 가 빈 문자열인 종목이 실제로 있다. 0 이나 오늘로 채우지 않는다.
+        instruments.single().listedAt shouldBe null
     }
 
     // ── 토큰 무효화 대응 ──────────────────────────────────────────────────
